@@ -1,0 +1,6 @@
+{
+  "name": "StudyBuddy",
+  "description": "An AI-powered Study Buddy that generates summaries, analogies, mnemonics, active recall cards, and interactive quizzes to make studying engaging and effective.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

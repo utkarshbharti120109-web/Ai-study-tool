@@ -1,18 +1,41 @@
 # AI Study Tool
 
-AI-powered study assistant that converts learning material into:
+AI-powered study assistant that transforms learning into active recall.
 
-• Knowledge summaries
-• ELI12 metaphors
-• Active recall quizzes
-• Teachable moments
-• Spaced repetition reminders
-• Progress tracking
+## Features
 
-Built with:
+- Knowledge summaries
+- ELI12 explanations
+- Cognitive metaphors
+- AI-generated quizzes
+- Teachable moments
+- Spaced repetition reminders
+- Progress tracking
+
+## Screenshots
+
+### Home Screen
+![Home](screenshots/home.png)
+
+### Recall Quiz
+![Quiz](screenshots/quiz.png)
+
+### Great Retrieval Score
+![Score](screenshots/score.png)
+
+### Reminders
+![Reminder](screenshots/reminders.png)
+
+## Tech Stack
+
 - Kotlin
-- Gemini API
 - Android
+- Gemini / Google AI Studio
+- AI prompt engineering
 
-Why I built it:
-I wanted studying to feel like an interactive memory system instead of passive reading.6. Run the app on an emulator or physical device
+## Future Plans
+
+- PDF upload
+- Weak-area detection
+- Smarter memory maps
+- Offline support

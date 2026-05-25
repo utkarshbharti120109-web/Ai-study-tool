@@ -24,7 +24,9 @@ import kotlinx.coroutines.delay
 @Composable
 fun ActiveRecallFlipCard(
     card: ActiveRecallCard,
-    onCompleted: () -> Unit
+    onCompleted: () -> Unit,
+    onForgot: () -> Unit = {},
+    onMastered: () -> Unit = {}
 ) {
     var rotated by remember { mutableStateOf(false) }
     val rotation by animateFloatAsState(
@@ -42,7 +44,7 @@ fun ActiveRecallFlipCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(180.dp)
+                .height(200.dp)
                 .graphicsLayer {
                     rotationY = rotation
                     cameraDistance = 8 * density
@@ -134,13 +136,54 @@ fun ActiveRecallFlipCard(
                 }
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = onCompleted,
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-            shape = RoundedCornerShape(12.dp)
+        
+        Spacer(modifier = Modifier.height(12.dp))
+        
+        // Multi-tier spaced repetition response panel
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Got it! Mark Concept Reviewed", style = MaterialTheme.typography.labelMedium)
+            Button(
+                onClick = {
+                    onForgot()
+                    rotated = false
+                    onCompleted()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935)),
+                modifier = Modifier.weight(1f).testTag("forgot_card_btn"),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(vertical = 12.dp)
+            ) {
+                Text("Forgot ⚠️", style = MaterialTheme.typography.labelSmall, color = Color.White)
+            }
+            
+            Button(
+                onClick = {
+                    rotated = false
+                    onCompleted()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                modifier = Modifier.weight(1.2f).testTag("reviewed_card_btn"),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(vertical = 12.dp)
+            ) {
+                Text("Review later 🧩", style = MaterialTheme.typography.labelSmall)
+            }
+            
+            Button(
+                onClick = {
+                    onMastered()
+                    rotated = false
+                    onCompleted()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                modifier = Modifier.weight(1f).testTag("mastered_card_btn"),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(vertical = 12.dp)
+            ) {
+                Text("Mastered! 🌿", style = MaterialTheme.typography.labelSmall, color = Color.White)
+            }
         }
     }
 }

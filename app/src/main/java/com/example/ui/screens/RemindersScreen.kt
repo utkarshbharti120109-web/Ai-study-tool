@@ -195,7 +195,7 @@ fun RemindersScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = if (alarm.isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                             )
-                            val formattedTime = String.format("%02d:%02d", alarm.hour, alarm.minute)
+                            val formattedTime = "${alarm.hour.toString().padStart(2, '0')}:${alarm.minute.toString().padStart(2, '0')}"
                             Text(
                                 text = "Daily interval at $formattedTime",
                                 style = MaterialTheme.typography.bodySmall,

@@ -88,6 +88,779 @@ fun StudyGuideScreen(
 // --- Screen 1: Input Page for pasting notes / topics ---
 @Composable
 fun InputMaterialsScreen(viewModel: StudyViewModel) {
+    val context = LocalContext.current
+    val topicInput by viewModel.topicInput.collectAsStateWithLifecycle()
+    val difficulty by viewModel.selectedDifficulty.collectAsStateWithLifecycle()
+    val isExamTomorrow by viewModel.isExamTomorrow.collectAsStateWithLifecycle()
+    val sessions by viewModel.sessions.collectAsStateWithLifecycle()
+    val currentStreak by viewModel.currentStreak.collectAsStateWithLifecycle()
+    
+    // Extended states
+    val quizType by viewModel.selectedQuizType.collectAsStateWithLifecycle()
+    val targetExam by viewModel.selectedTargetExam.collectAsStateWithLifecycle()
+    
+    val voiceAnswer by viewModel.voiceAnswer.collectAsStateWithLifecycle()
+    val isVoiceLoading by viewModel.isVoiceLoading.collectAsStateWithLifecycle()
+    var voiceQueryInput by remember { mutableStateOf("") }
+    
+    val timerSeconds by viewModel.focusTimerSecondsLeft.collectAsStateWithLifecycle()
+    val timerIsRunning by viewModel.focusTimerIsRunning.collectAsStateWithLifecycle()
+    val timerIsBreak by viewModel.focusTimerIsBreak.collectAsStateWithLifecycle()
+    
+    val isScannerLoading by viewModel.isScannerLoading.collectAsStateWithLifecycle()
+    val scannerResult by viewModel.scannerResult.collectAsStateWithLifecycle()
+
+    val streakModel = currentStreak ?: com.example.data.db.StudyStreak(id = 1, currentStreak = 0, lastStudyDate = "")
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp),
+        contentPadding = PaddingValues(top = 24.dp, bottom = 48.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        // Welcome and Streak Item Row
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "A",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "Welcome to your study space,",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Aspirant Class 11/12",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(20.dp))
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                            RoundedCornerShape(20.dp)
+                        )
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("🔥", fontSize = 14.sp)
+                    Text(
+                        text = "${streakModel.currentStreak} Day Streak",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+
+        // Gamified Profile Progress & Character tree (Anki + Duolingo styled tracker card)
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth().testTag("gamified_character_card"),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("⭐ Level ${streakModel.level}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Badge(containerColor = MaterialTheme.colorScheme.secondaryContainer) {
+                                    Text("${streakModel.xp} XP", modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
+                                }
+                            }
+                            Text(
+                                text = "Next Level: ${(streakModel.level * 120) - streakModel.xp} XP needed",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        
+                        // Wisdom tree avatar based on growth progress!
+                        val stageEmoji = when {
+                            streakModel.plantProgress < 0.25f -> "🌱"
+                            streakModel.plantProgress < 0.6f -> "🌿"
+                            streakModel.plantProgress < 0.9f -> "🌳"
+                            else -> "🌴"
+                        }
+                        val stageTitle = when {
+                            streakModel.plantProgress < 0.25f -> "Sprout Stage"
+                            streakModel.plantProgress < 0.6f -> "Leafy Stage"
+                            streakModel.plantProgress < 0.9f -> "Sapling Stage"
+                            else -> "Ancient Forest"
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(text = stageEmoji, fontSize = 32.sp)
+                            Text(text = stageTitle, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(14.dp))
+                    
+                    // Experience Bar
+                    LinearProgressIndicator(
+                        progress = { streakModel.plantProgress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = Color(0xFF4CAF50),
+                        trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                    )
+                    
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "Wisdom tree growth status is tied directly to your active recall repetitions. Feed your mind to grow your garden!",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                        lineHeight = 16.sp
+                    )
+                }
+            }
+        }
+
+        // Active Quick learning Tools Rows (Doubt Solver Solver, hands-free voice speaker, focus timer)
+        item {
+            Text(
+                text = "ACTIVE STUDY UNIT",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                letterSpacing = 1.5.sp
+            )
+        }
+
+        // Pomodoro Core Focus Tracker Card
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth().testTag("pomodoro_focus_card"),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("⏰", fontSize = 22.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "ZEN FOCUS HOURGLASS",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                letterSpacing = 1.1.sp
+                            )
+                        }
+                        
+                        Badge(containerColor = if (timerIsBreak) Color(0xFF4CAF50).copy(alpha = 0.15f) else MaterialTheme.colorScheme.primaryContainer) {
+                            Text(
+                                text = if (timerIsBreak) "ZEN BREAKTIME" else "DEEP CEREBRATION",
+                                color = if (timerIsBreak) Color(0xFF2E7D32) else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val mins = timerSeconds / 60
+                        val secs = timerSeconds % 60
+                        val textTime = String.format(java.util.Locale.getDefault(), "%02d:%02d", mins, secs)
+                        
+                        Text(
+                            text = textTime,
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                onClick = {
+                                    if (timerIsRunning) viewModel.pauseFocusTimer() else viewModel.startFocusTimer()
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = if (timerIsRunning) Color(0xFFE53935) else MaterialTheme.colorScheme.primary)
+                            ) {
+                                Text(if (timerIsRunning) "Pause" else "Start Depth")
+                            }
+                            OutlinedButton(
+                                onClick = { viewModel.resetFocusTimer() },
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text("Reset")
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Completing a deep study session awards a huge bonus of 120 XP points to grow your plant!",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
+        }
+
+        // OCR Doubt Camera Solver Block
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth().testTag("ocr_scanner_card"),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🔬", fontSize = 22.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "DOUBT CAMERA & EQUATION SOLVER",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.1.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if (isScannerLoading) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Snapping Image... Running OCR solver...", style = MaterialTheme.typography.bodySmall)
+                        }
+                    } else if (scannerResult != null) {
+                        val session = scannerResult!!
+                        val formulas = remember(session) { JsonHelper.jsonToStringList(session.formulasJson) }
+                        
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
+                                .padding(16.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Badge(containerColor = Color(0xFF4CAF50).copy(alpha = 0.15f)) {
+                                    Text("SOLVED!", color = Color(0xFF2E7D32), modifier = Modifier.padding(horizontal = 4.dp))
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(session.topic, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Simple: " + session.eli11,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            if (formulas.isNotEmpty()) {
+                                Text("Formula standard: " + formulas.joinToString(", "), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = { viewModel.setViewingSession(session) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                               ) {
+                                    Text("View full derivation guide", style = MaterialTheme.typography.labelSmall)
+                                }
+                                OutlinedButton(
+                                    onClick = { viewModel.scannerResult.value = null },
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text("Dismiss", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                    } else {
+                        Button(
+                            onClick = { viewModel.simulatePhotoOcrAndSolve(context) },
+                            modifier = Modifier.fillMaxWidth().testTag("ocr_camera_capture_button"),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Text("Capture Physics/Math Equation Picture 📸", style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+            }
+        }
+
+        // hands-free Voice Q&A Tutor Mode
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth().testTag("voice_teacher_card"),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🗣️", fontSize = 22.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "HANDS-FREE AUDITORY TEACHER",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 1.1.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = voiceQueryInput,
+                        onValueChange = { voiceQueryInput = it },
+                        modifier = Modifier.fillMaxWidth().testTag("voice_query_tf"),
+                        placeholder = { Text("Ask something (e.g. Explain thermodynamics)...") },
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                viewModel.queryVoiceTeacher(voiceQueryInput, context)
+                                voiceQueryInput = ""
+                            },
+                            enabled = !isVoiceLoading,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1.5f).testTag("voice_ask_btn")
+                        ) {
+                            if (isVoiceLoading) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.onPrimary)
+                            } else {
+                                Text("Ask Teacher & Listen 🔊")
+                            }
+                        }
+
+                        OutlinedButton(
+                            onClick = { viewModel.stopSpeaking() },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(0.8f)
+                        ) {
+                            Text("Mute ❌")
+                        }
+                    }
+
+                    if (voiceAnswer.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    "Teacher's Voice Explanation:",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF4CAF50),
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    voiceAnswer,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Creative Syllabus and Materials Form card
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Text(
+                        text = "GENERATE A COGNITIVE CONCEPT PACK",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        letterSpacing = 1.2.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = topicInput,
+                        onValueChange = { viewModel.topicInput.value = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(130.dp)
+                            .testTag("notes_input_text_field"),
+                        placeholder = {
+                            Text(
+                                "Paste study notes, textbook outlines, math questions, or physics chapters (e.g., Thermodynamics revision stage)...",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = "QUIZ ASSESSMENT STYLE",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        letterSpacing = 1.1.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    // Segmented Quiz-type selector chips
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("MCQ", "Assertion-Reason", "Numerical").forEach { type ->
+                            val isSel = quizType == type
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
+                                    .clickable { viewModel.selectedQuizType.value = type }
+                                    .padding(vertical = 10.dp)
+                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                    .testTag("quiz_type_chip_$type"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    type, 
+                                    style = MaterialTheme.typography.labelSmall, 
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSel) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = "LEARNING DIFFICULTY LEVEL",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        letterSpacing = 1.2.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("EASY", "MEDIUM", "HARD").forEach { level ->
+                            val isSelected = difficulty == level
+                            val chipBg by animateColorAsState(
+                                if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                                label = "chipBg"
+                            )
+                            val chipTextCol by animateColorAsState(
+                                if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                                label = "chipTextCol"
+                            )
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(chipBg)
+                                    .border(
+                                        1.dp,
+                                        if (isSelected) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable { viewModel.selectedDifficulty.value = level }
+                                    .padding(vertical = 10.dp)
+                                    .testTag("difficulty_chip_${level.lowercase()}"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = level,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = chipTextCol
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Exam tomorrow switch panel (existing)
+        item {
+            val examTomorrowActive = isExamTomorrow
+            val examModeBgOrStroke = if (examTomorrowActive) {
+                Brush.linearGradient(listOf(Color(0xFFFF7B00), Color(0xFFFF3300)))
+            } else {
+                Brush.linearGradient(listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surface))
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .border(
+                        1.dp,
+                        if (examTomorrowActive) Color.Transparent else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                        RoundedCornerShape(20.dp)
+                    )
+                    .background(if (examTomorrowActive) examModeBgOrStroke else Brush.linearGradient(listOf(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))))
+                    .clickable { viewModel.isExamTomorrow.value = !examTomorrowActive }
+                    .padding(18.dp)
+                    .testTag("exam_tomorrow_mode_box")
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .background(
+                                if (examTomorrowActive) Color.White.copy(alpha = 0.25f) else MaterialTheme.colorScheme.primaryContainer,
+                                CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "🔥",
+                            fontSize = 20.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Exam Tomorrow Mode 🔥",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (examTomorrowActive) Color.White else MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Rapid study pack! Generates vital lists & high-impact summaries.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (examTomorrowActive) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = examTomorrowActive,
+                        onCheckedChange = { viewModel.isExamTomorrow.value = it },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = Color.White.copy(alpha = 0.4f)
+                        )
+                    )
+                }
+            }
+        }
+
+        // Active generate button Spark Pack
+        item {
+            Button(
+                onClick = { viewModel.generateStudySession() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .testTag("generate_study_pack_button"),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Text("🧠", fontSize = 20.sp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Ignite Cognitive Concept Pack",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            }
+        }
+
+        // Section space before guidebooks list
+
+        // Previous Library list header
+        if (sessions.isNotEmpty()) {
+            item {
+                Text(
+                    text = "YOUR RECENT COGNITIVE GUIDEBOOKS",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    letterSpacing = 1.2.sp,
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+            }
+
+            items(sessions) { session ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { viewModel.setViewingSession(session) }
+                        .testTag("session_item_${session.id}"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (session.isExamTomorrowMode) Icons.Default.OfflineBolt else Icons.Default.Analytics,
+                                contentDescription = "guide index icon",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = session.topic,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Row(
+                                modifier = Modifier.padding(top = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Badge(
+                                    containerColor = when (session.difficulty) {
+                                        "EASY" -> Color(0xFF4CAF50).copy(alpha = 0.15f)
+                                        "MEDIUM" -> Color(0xFFFF9800).copy(alpha = 0.15f)
+                                        else -> Color(0xFFF44336).copy(alpha = 0.15f)
+                                    },
+                                    contentColor = when (session.difficulty) {
+                                        "EASY" -> Color(0xFF2E7D32)
+                                        "MEDIUM" -> Color(0xFFEF6C00)
+                                        else -> Color(0xFFC62828)
+                                    }
+                                ) {
+                                    Text(
+                                        session.difficulty,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                }
+                                if (session.isExamTomorrowMode) {
+                                    Badge(
+                                        containerColor = Color(0xFFFF5722).copy(alpha = 0.15f),
+                                        contentColor = Color(0xFFD84315)
+                                    ) {
+                                        Text(
+                                            "EXAM CRUSH",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        IconButton(
+                            onClick = { viewModel.deleteSession(session.id) },
+                            modifier = Modifier.testTag("delete_session_button_${session.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete",
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --- Original Input Materials Screen Wrapper ---
+@Composable
+fun InputMaterialsScreenOld(viewModel: StudyViewModel) {
     val topicInput by viewModel.topicInput.collectAsStateWithLifecycle()
     val difficulty by viewModel.selectedDifficulty.collectAsStateWithLifecycle()
     val isExamTomorrow by viewModel.isExamTomorrow.collectAsStateWithLifecycle()
@@ -561,9 +1334,14 @@ fun StudyDashboard(viewModel: StudyViewModel, session: StudySession?) {
         ) {
             Box(modifier = Modifier.weight(1f)) {
                 when (selectedTab) {
-                    0 -> SummaryTab(summary = session.summary, keyPoints = keyPoints)
+                    0 -> SummaryTab(session = session)
                     1 -> MetaphorTab(eli12 = session.eli12, mnemonics = mnemonics)
-                    2 -> RecallTab(activeRecall = activeRecall, onReviewCompleted = { viewModel.completeActiveRecallReview() })
+                    2 -> RecallTab(
+                        activeRecall = activeRecall,
+                        onReviewCompleted = { viewModel.completeActiveRecallReview() },
+                        onForgotCard = { q -> viewModel.markFlashcardAsForgotten(q, session.topic) },
+                        onMasteredCard = { q -> viewModel.markFlashcardAsMastered(q) }
+                    )
                 }
             }
 
@@ -611,14 +1389,63 @@ fun StudyDashboard(viewModel: StudyViewModel, session: StudySession?) {
 
 // --- Tab 1: Summary / Key points ---
 @Composable
-fun SummaryTab(summary: String, keyPoints: List<String>) {
+fun SummaryTab(session: com.example.data.db.StudySession) {
+    val keyPoints = remember(session) { JsonHelper.jsonToStringList(session.keyPointsJson) }
+    val formulas = remember(session) { JsonHelper.jsonToStringList(session.formulasJson) }
+    val derivations = remember(session) { JsonHelper.jsonToStringList(session.derivationsJson) }
+    val examQuestionsRaw = remember(session) { JsonHelper.jsonToStringList(session.examQuestionsJson) }
+    val predictedTopics = remember(session) { JsonHelper.jsonToStringList(session.predictionTopicsJson) }
+    val commonMistakes = remember(session) { JsonHelper.jsonToStringList(session.commonMistakesJson) }
+    
+    var isEli11State by remember { mutableStateOf(false) }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 20.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Toggle Panel between standard & ELI11 for Class 11/12
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth().testTag("eli11_toggle_card"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Class 11/12 Pedagogic Filter",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = if (isEli11State) "Simplified \"ELI11\" Intuition Active" else "Standard Rigorous Syllabus Summary Active",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Button(
+                        onClick = { isEli11State = !isEli11State },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isEli11State) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text(if (isEli11State) "Revert to Standard" else "ELI11 mode 🦄", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+        }
+
+        // The Summary Display Card
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -635,7 +1462,7 @@ fun SummaryTab(summary: String, keyPoints: List<String>) {
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "EXECUTIVE SUMMARY",
+                            text = if (isEli11State) "ELI11 COGNITIVE TRANSLATION" else "EXECUTIVE SUMMARY",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
@@ -644,7 +1471,7 @@ fun SummaryTab(summary: String, keyPoints: List<String>) {
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = summary,
+                        text = if (isEli11State) session.eli11 else session.summary,
                         style = MaterialTheme.typography.bodyMedium,
                         lineHeight = 24.sp,
                         color = MaterialTheme.colorScheme.onSurface
@@ -653,6 +1480,7 @@ fun SummaryTab(summary: String, keyPoints: List<String>) {
             }
         }
 
+        // Critical Study points
         if (keyPoints.isNotEmpty()) {
             item {
                 Text(
@@ -677,7 +1505,7 @@ fun SummaryTab(summary: String, keyPoints: List<String>) {
                     ) {
                         Box(
                             modifier = Modifier
-                                .padding(top = 2.dp)
+                                .padding(top = 5.dp)
                                 .size(8.dp)
                                 .background(MaterialTheme.colorScheme.primary, CircleShape)
                         )
@@ -685,6 +1513,190 @@ fun SummaryTab(summary: String, keyPoints: List<String>) {
                         Text(
                             text = point,
                             style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+        }
+
+        // Essential Physics, Math or Chemistry Formulas with nice rendering icons
+        if (formulas.isNotEmpty()) {
+            item {
+                Text(
+                    text = "📐 PHYSICS & MATHEMATIC FORMULAS",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    letterSpacing = 1.2.sp,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            items(formulas) { formula ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.15f)),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("📐", fontSize = 18.sp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = formula,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+            }
+        }
+
+        // Step-by-Step Derivation Guides
+        if (derivations.isNotEmpty()) {
+            item {
+                Text(
+                    text = "⚙️ CRITICAL DERIVATIONS & LOGICAL FLOW",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    letterSpacing = 1.2.sp,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            items(derivations) { step ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text("Syllabus Step:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = step, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+            }
+        }
+
+        // Common mistakes students make under typical boards examination
+        if (commonMistakes.isNotEmpty()) {
+            item {
+                Text(
+                    text = "⚠️ COMMON PITFALLS & EXAMINATION MISTAKES",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFC62828),
+                    letterSpacing = 1.2.sp,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            items(commonMistakes) { mistake ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF44336).copy(alpha = 0.08f)),
+                    border = BorderStroke(1.dp, Color(0xFFE53935).copy(alpha = 0.15f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Text("❌", fontSize = 16.sp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = mistake,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+        }
+
+        // Exam Prediction AI Analytics Trends Box
+        if (predictedTopics.isNotEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().testTag("prediction_card"),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.3f))
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🔮", fontSize = 20.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "AI PAST PAPER WEIGHTAGE PREDICTION",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.tertiary,
+                                letterSpacing = 1.2.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        predictedTopics.forEach { topic ->
+                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                Text(
+                                    topic,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                LinearProgressIndicator(
+                                    progress = { 0.85f }, // Predicted relevance is high
+                                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                    trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Predicted likely examination questions
+        if (examQuestionsRaw.isNotEmpty()) {
+            item {
+                Text(
+                    text = " Likely Exam Board / Competitive Queries",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.secondary,
+                    letterSpacing = 1.2.sp,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            items(examQuestionsRaw) { question ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Badge(containerColor = MaterialTheme.colorScheme.secondaryContainer) {
+                                Text("PROBABLE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.padding(horizontal = 4.dp))
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = question,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
@@ -792,7 +1804,12 @@ fun MetaphorTab(eli12: String, mnemonics: List<String>) {
 
 // --- Tab 3: Active Recall Flip Cards ---
 @Composable
-fun RecallTab(activeRecall: List<ActiveRecallCard>, onReviewCompleted: () -> Unit) {
+fun RecallTab(
+    activeRecall: List<ActiveRecallCard>,
+    onReviewCompleted: () -> Unit,
+    onForgotCard: (String) -> Unit = {},
+    onMasteredCard: (String) -> Unit = {}
+) {
     if (activeRecall.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("No active recall cards generated.")
@@ -832,7 +1849,9 @@ fun RecallTab(activeRecall: List<ActiveRecallCard>, onReviewCompleted: () -> Uni
                             reviewCompleteShow = true
                             onReviewCompleted()
                         }
-                    }
+                    },
+                    onForgot = { onForgotCard(activeRecall[cardIndex].question) },
+                    onMastered = { onMasteredCard(activeRecall[cardIndex].question) }
                 )
             }
         } else {

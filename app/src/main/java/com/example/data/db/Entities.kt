@@ -36,7 +36,16 @@ data class StudySession(
     val quizJson: String,          // List<QuizQuestion>
     val difficulty: String,        // EASY, MEDIUM, HARD
     val isExamTomorrowMode: Boolean,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    
+    // New premium fields matching user requests
+    val formulasJson: String = "[]",          // List<String>
+    val examQuestionsJson: String = "[]",      // List<String>
+    val eli11: String = "",                    // Class 11 simplified explanation
+    val derivationsJson: String = "[]",        // List<String>
+    val commonMistakesJson: String = "[]",     // List<String>
+    val predictionTopicsJson: String = "[]",   // List<String>
+    val priorityScore: Int = 85                // Predicted priority rating out of 100
 )
 
 @Entity(tableName = "quiz_history")
@@ -54,7 +63,17 @@ data class StudyStreak(
     @PrimaryKey val id: Int = 1,
     val currentStreak: Int = 0,
     val maxStreak: Int = 0,
-    val lastStudyDate: String = "" // YYYY-MM-DD
+    val lastStudyDate: String = "", // YYYY-MM-DD
+    
+    // New gamification & local memory stats
+    val xp: Int = 120,
+    val level: Int = 1,
+    val plantProgress: Float = 0.25f,
+    val weakChaptersJson: String = "[\"Integration\", \"Thermodynamics Laws\"]",
+    val forgottenCardsJson: String = "[]",
+    val apiRouterModel: String = "AUTO",
+    val localModelEnabled: Boolean = false,
+    val targetExam: String = "JEE"
 )
 
 @Entity(tableName = "study_reminders")

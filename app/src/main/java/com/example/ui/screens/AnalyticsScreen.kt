@@ -147,7 +147,7 @@ fun AnalyticsScreen(
                             )
                         }
                         Spacer(modifier = Modifier.height(12.dp))
-                        val formattedAvg = averageScore?.let { String.format("%.1f", it) } ?: "0.0"
+                        val formattedAvg = averageScore?.let { String.format(java.util.Locale.US, "%.1f", it) } ?: "0.0"
                         Text(
                             text = "$formattedAvg / 5",
                             style = MaterialTheme.typography.titleLarge,

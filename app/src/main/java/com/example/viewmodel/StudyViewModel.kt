@@ -36,6 +36,25 @@ class StudyViewModel(
     val topicInput = MutableStateFlow("")
     val selectedDifficulty = MutableStateFlow("MEDIUM") // EASY, MEDIUM, HARD
     val isExamTomorrow = MutableStateFlow(false)
+    
+    // New premium configuration inputs
+    val selectedQuizType = MutableStateFlow("MCQ") // MCQ, Assertion-Reason, Numerical, Short/Long Answers
+    val selectedTargetExam = MutableStateFlow("JEE") // EASY, BOARD, JEE, NEET
+    
+    // Voice Mode States
+    val voiceAnswer = MutableStateFlow("")
+    val isVoiceLoading = MutableStateFlow(false)
+    private var tts: android.speech.tts.TextToSpeech? = null
+    
+    // Pomodoro Timer States
+    val focusTimerSecondsLeft = MutableStateFlow(1500) // 25:00 default
+    val focusTimerIsRunning = MutableStateFlow(false)
+    val focusTimerIsBreak = MutableStateFlow(false)
+    private var timerJob: kotlinx.coroutines.Job? = null
+    
+    // Formula Scanner & Camera Solver States
+    val isScannerLoading = MutableStateFlow(false)
+    val scannerResult = MutableStateFlow<StudySession?>(null)
 
     // Generator UI State
     private val _generatingState = MutableStateFlow<GeneratingUiState>(GeneratingUiState.Idle)
@@ -98,9 +117,235 @@ class StudyViewModel(
         initialValue = emptyList()
     )
 
+    val isLoggedIn = MutableStateFlow(false)
+    val loggedInEmail = MutableStateFlow("")
+    val customApiKey = MutableStateFlow("")
+    val hfModelDownloaded = MutableStateFlow(false)
+    val hfGemmaDownloaded = MutableStateFlow(false)
+
     init {
+        try {
+            val userPrefs = application.getSharedPreferences("user_session", Context.MODE_PRIVATE)
+            isLoggedIn.value = userPrefs.getBoolean("is_logged_in", false)
+            loggedInEmail.value = userPrefs.getString("logged_in_email", "") ?: ""
+
+            val settingsPrefs = application.getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+            customApiKey.value = settingsPrefs.getString("custom_api_key", "") ?: ""
+            hfModelDownloaded.value = settingsPrefs.getBoolean("hf_model_downloaded", false)
+            hfGemmaDownloaded.value = settingsPrefs.getBoolean("hf_gemma_downloaded", false)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
         viewModelScope.launch {
             repository.populateDefaultBadges()
+        }
+    }
+
+    fun setLoginStatus(email: String, loggedIn: Boolean) {
+        try {
+            val userPrefs = getApplication<Application>().getSharedPreferences("user_session", Context.MODE_PRIVATE)
+            userPrefs.edit()
+                .putBoolean("is_logged_in", loggedIn)
+                .putString("logged_in_email", email)
+                .apply()
+            isLoggedIn.value = loggedIn
+            loggedInEmail.value = email
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun saveCustomApiKey(key: String) {
+        try {
+            val settingsPrefs = getApplication<Application>().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+            settingsPrefs.edit()
+                .putString("custom_api_key", key)
+                .apply()
+            customApiKey.value = key
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun setModelDownloadState(modelName: String, downloaded: Boolean) {
+        try {
+            val settingsPrefs = getApplication<Application>().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+            if (modelName == "TinyLlama") {
+                settingsPrefs.edit().putBoolean("hf_model_downloaded", downloaded).apply()
+                hfModelDownloaded.value = downloaded
+            } else if (modelName == "Gemma") {
+                settingsPrefs.edit().putBoolean("hf_gemma_downloaded", downloaded).apply()
+                hfGemmaDownloaded.value = downloaded
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    // Voice Teacher Actions
+    fun initTts(context: Context) {
+        if (tts == null) {
+            try {
+                tts = android.speech.tts.TextToSpeech(context.applicationContext) { status ->
+                    try {
+                        if (status == android.speech.tts.TextToSpeech.SUCCESS) {
+                            tts?.language = java.util.Locale.US
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun speakText(text: String, context: Context) {
+        try {
+            initTts(context)
+            tts?.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "StudyBuddyVoiceText")
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun stopSpeaking() {
+        try {
+            tts?.stop()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun queryVoiceTeacher(query: String, context: Context) {
+        if (query.trim().isEmpty()) return
+        voiceAnswer.value = ""
+        isVoiceLoading.value = true
+        initTts(context)
+        
+        viewModelScope.launch {
+            try {
+                val clKey = customApiKey.value
+                val apiKey = if (clKey.isNotEmpty()) clKey else com.example.BuildConfig.GEMINI_API_KEY
+                val responseText = if (apiKey.isNotEmpty() && apiKey != "MY_GEMINI_API_KEY") {
+                    val prompt = "Give a concise, hands-free audio explanation of: '$query' for a student. Keep it engaging, under 3 sentences."
+                    val req = com.example.data.api.GenerateContentRequest(
+                        contents = listOf(com.example.data.api.Content(parts = listOf(com.example.data.api.Part(text = prompt)))),
+                        generationConfig = com.example.data.api.GenerationConfig(temperature = 0.6f)
+                    )
+                    val apiRes = com.example.data.api.RetrofitClient.service.generateContent(apiKey, req)
+                    apiRes.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text 
+                        ?: "I'm sorry, I couldn't process that query."
+                } else {
+                    "Offline Voice mode active. For '$query': remember that energy cannot be created or destroyed, it only transforms from work to heat. Keep reviewing flashcards to lock in this concept!"
+                }
+                
+                voiceAnswer.value = responseText
+                isVoiceLoading.value = false
+                speakText(responseText, context)
+                repository.incrementXp(15)
+            } catch (e: Exception) {
+                voiceAnswer.value = "Error: ${e.localizedMessage}"
+                isVoiceLoading.value = false
+            }
+        }
+    }
+
+    // Pomodoro Timer Actions
+    fun startFocusTimer() {
+        if (focusTimerIsRunning.value) return
+        focusTimerIsRunning.value = true
+        timerJob = viewModelScope.launch {
+            while (focusTimerSecondsLeft.value > 0) {
+                kotlinx.coroutines.delay(1000)
+                focusTimerSecondsLeft.value -= 1
+            }
+            focusTimerIsRunning.value = false
+            if (focusTimerIsBreak.value) {
+                focusTimerIsBreak.value = false
+                focusTimerSecondsLeft.value = 1500
+            } else {
+                repository.incrementXp(120) // Mega focus reward!
+                focusTimerIsBreak.value = true
+                focusTimerSecondsLeft.value = 300 // 5:00 break
+            }
+        }
+    }
+
+    fun pauseFocusTimer() {
+        focusTimerIsRunning.value = false
+        timerJob?.cancel()
+    }
+
+    fun resetFocusTimer() {
+        pauseFocusTimer()
+        focusTimerIsBreak.value = false
+        focusTimerSecondsLeft.value = 1500
+    }
+
+    // Scanner / Doubt Camera Actions
+    fun simulatePhotoOcrAndSolve(context: Context) {
+        if (isScannerLoading.value) return
+        isScannerLoading.value = true
+        scannerResult.value = null
+        
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(2000) // Simulate image capture OCR processing delay
+            try {
+                // Returns step-by-step math solve
+                val scanTopic = "Calculus limits: lim x->0 (sin x)/x"
+                val clKey = customApiKey.value
+                val sessionResult = repository.generateStudyGuide(
+                    topicOrNote = "Solve the calculus limit limit x tends to 0 of sine of x divided by x step by step using standard Taylor expansion or L'Hopital rule.",
+                    difficulty = "MEDIUM",
+                    isExamTomorrow = false,
+                    quizType = "Numerical",
+                    targetExam = "JEE",
+                    apiRouterModel = "OCR",
+                    localModelEnabledFlag = false,
+                    customApiKey = clKey
+                )
+                scannerResult.value = sessionResult
+                isScannerLoading.value = false
+                repository.incrementXp(40) // Grant OCR solve points
+                Toast.makeText(context, "Formula Scanned & Solved!", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                isScannerLoading.value = false
+                Toast.makeText(context, "OCR scanner failed: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun selectSettingsExamType(exam: String) {
+        viewModelScope.launch {
+            repository.updateTargetExam(exam)
+        }
+    }
+
+    fun toggleOfflineSetting(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.toggleLocalModel(enabled)
+        }
+    }
+
+    fun updateSettingsRouterMode(model: String) {
+        viewModelScope.launch {
+            repository.updateRouterModel(model)
+        }
+    }
+
+    // Active Recall / Flashcard forgot-mastered actions
+    fun markFlashcardAsForgotten(question: String, topic: String) {
+        viewModelScope.launch {
+            repository.trackWeakChapterAndForgotCard(topic, question)
+        }
+    }
+
+    fun markFlashcardAsMastered(question: String) {
+        viewModelScope.launch {
+            repository.markCardAsMastered(question)
         }
     }
 
@@ -114,10 +359,17 @@ class StudyViewModel(
         viewModelScope.launch {
             _generatingState.value = GeneratingUiState.Loading
             try {
+                val currentStreakInfo = currentStreak.value ?: com.example.data.db.StudyStreak(id = 1)
+                val clKey = customApiKey.value
                 val session = repository.generateStudyGuide(
                     topicOrNote = topicInput.value,
                     difficulty = selectedDifficulty.value,
-                    isExamTomorrow = isExamTomorrow.value
+                    isExamTomorrow = isExamTomorrow.value,
+                    quizType = selectedQuizType.value,
+                    targetExam = currentStreakInfo.targetExam,
+                    apiRouterModel = currentStreakInfo.apiRouterModel,
+                    localModelEnabledFlag = currentStreakInfo.localModelEnabled,
+                    customApiKey = clKey
                 )
                 _generatingState.value = GeneratingUiState.Success(session)
                 _viewingSession.value = session
@@ -253,6 +505,17 @@ class StudyViewModel(
             _generatingState.value = GeneratingUiState.Idle
             _viewingSession.value = null
             closeQuiz()
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        try {
+            tts?.stop()
+            tts?.shutdown()
+            tts = null
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

@@ -235,6 +235,7 @@ class StudyRepository(private val db: AppDatabase) {
     }
 
     suspend fun generateStudyGuide(
+        context: android.content.Context,
         topicOrNote: String,
         difficulty: String,
         isExamTomorrow: Boolean,
@@ -738,19 +739,14 @@ class StudyRepository(private val db: AppDatabase) {
             }
         """.trimIndent()
 
-        val request = GenerateContentRequest(
-            contents = listOf(Content(parts = listOf(Part(text = prompt)))),
-            generationConfig = GenerationConfig(
-                responseMimeType = "application/json",
-                temperature = 0.7f
-            ),
-            systemInstruction = Content(parts = listOf(Part(text = systemPrompt)))
-        )
-
         val parsed = try {
-            val apiResponse = RetrofitClient.service.generateContent(apiKey, request)
-            val rawJson = apiResponse.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
-                ?: throw IllegalStateException("AI returned an empty response.")
+            val rawJson = com.example.data.api.FirebaseVertexAiClient.generateContent(
+                context = context,
+                apiKey = apiKey,
+                modelName = "gemini-3.5-flash",
+                systemPrompt = systemPrompt,
+                prompt = prompt
+            )
             val cleanedJson = cleanJson(rawJson)
             JsonHelper.moshi.adapter(GeminiStudyResponse::class.java).fromJson(cleanedJson)
                 ?: throw IllegalArgumentException("Failed to decode JSON data configuration.")
@@ -759,6 +755,7 @@ class StudyRepository(private val db: AppDatabase) {
             // Fallback to offline mode generator if API call or JSON parsing fails to ensure absolute resilience
             val warningMsg = "⚠️ Note: API returned an error (${e.localizedMessage ?: "HTTP 403 Forbidden"}). Running offline fallback mode. Please configure or verify your custom Gemini API Key in the Settings panel!\n\n"
             return@withContext generateStudyGuide(
+                context = context,
                 topicOrNote = topicOrNote,
                 difficulty = difficulty,
                 isExamTomorrow = isExamTomorrow,

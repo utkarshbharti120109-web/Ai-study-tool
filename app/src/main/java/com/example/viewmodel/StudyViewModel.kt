@@ -263,13 +263,13 @@ class StudyViewModel(
                 val apiKey = if (clKey.isNotEmpty()) clKey else com.example.BuildConfig.GEMINI_API_KEY
                 val responseText = if (apiKey.isNotEmpty() && apiKey != "MY_GEMINI_API_KEY") {
                     val prompt = "Give a concise, hands-free audio explanation of: '$query' for a student. Keep it engaging, under 3 sentences."
-                    val req = com.example.data.api.GenerateContentRequest(
-                        contents = listOf(com.example.data.api.Content(parts = listOf(com.example.data.api.Part(text = prompt)))),
-                        generationConfig = com.example.data.api.GenerationConfig(temperature = 0.6f)
+                    com.example.data.api.FirebaseVertexAiClient.generateContent(
+                        context = context,
+                        apiKey = apiKey,
+                        modelName = "gemini-3.5-flash",
+                        systemPrompt = "You are an expert AI Study Buddy.",
+                        prompt = prompt
                     )
-                    val apiRes = com.example.data.api.RetrofitClient.service.generateContent(apiKey, req)
-                    apiRes.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text 
-                        ?: "I'm sorry, I couldn't process that query."
                 } else {
                     "Offline Voice mode active. For '$query': remember that energy cannot be created or destroyed, it only transforms from work to heat. Keep reviewing flashcards to lock in this concept!"
                 }
@@ -339,6 +339,7 @@ class StudyViewModel(
                 val scanTopic = "Calculus limits: lim x->0 (sin x)/x"
                 val clKey = customApiKey.value
                 val sessionResult = repository.generateStudyGuide(
+                    context = context,
                     topicOrNote = "Solve the calculus limit limit x tends to 0 of sine of x divided by x step by step using standard Taylor expansion or L'Hopital rule.",
                     difficulty = "MEDIUM",
                     isExamTomorrow = false,
@@ -403,6 +404,7 @@ class StudyViewModel(
                 val currentStreakInfo = currentStreak.value ?: com.example.data.db.StudyStreak(id = 1)
                 val clKey = customApiKey.value
                 val session = repository.generateStudyGuide(
+                    context = getApplication<Application>().applicationContext,
                     topicOrNote = topicInput.value,
                     difficulty = selectedDifficulty.value,
                     isExamTomorrow = isExamTomorrow.value,

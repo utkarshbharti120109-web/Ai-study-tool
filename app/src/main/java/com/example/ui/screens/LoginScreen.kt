@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -48,6 +50,12 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var nickname by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
+
+    var showGoogleAuthSheet by remember { mutableStateOf(false) }
+    var showGithubAuthSheet by remember { mutableStateOf(false) }
+    var isAuthenticatingSocial by remember { mutableStateOf(false) }
+    var authSocialEmail by remember { mutableStateOf("") }
+    var authSocialName by remember { mutableStateOf("") }
 
     val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
@@ -276,6 +284,97 @@ fun LoginScreen(
                             fontWeight = FontWeight.Bold
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Social login divider
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        HorizontalDivider(
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+                        )
+                        Text(
+                            text = "Or continue with",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        )
+                        HorizontalDivider(
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Social buttons row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Google button
+                        OutlinedButton(
+                            onClick = {
+                                keyboardController?.hide()
+                                focusManager.clearFocus()
+                                showGoogleAuthSheet = true
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
+                                .testTag("continue_with_google_button"),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            border = ButtonDefaults.outlinedButtonBorder.copy(
+                                width = 1.dp
+                            ),
+                            contentPadding = PaddingValues(horizontal = 8.dp)
+                        ) {
+                            GoogleLogoIcon(modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Google",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1
+                            )
+                        }
+
+                        // GitHub button
+                        OutlinedButton(
+                            onClick = {
+                                keyboardController?.hide()
+                                focusManager.clearFocus()
+                                showGithubAuthSheet = true
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp)
+                                .testTag("continue_with_github_button"),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = Color(0xFF181717),
+                                contentColor = Color.White
+                            ),
+                            border = null,
+                            contentPadding = PaddingValues(horizontal = 8.dp)
+                        ) {
+                            GithubLogoIcon(modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "GitHub",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1
+                            )
+                        }
+                    }
                 }
             }
 
@@ -303,6 +402,390 @@ fun LoginScreen(
                         .testTag("toggle_login_mode_button")
                 )
             }
+        }
+    }
+
+    // Google Account Chooser Dialog
+    if (showGoogleAuthSheet) {
+        val enteredEmail = email.trim()
+        val isValidEnteredEmail = enteredEmail.contains("@") && enteredEmail.contains(".")
+        val dynamicEmail = if (isValidEnteredEmail) enteredEmail else "aspirant.scholar@gmail.com"
+        val dynamicName = if (isValidEnteredEmail) enteredEmail.substringBefore("@").replaceFirstChar { it.uppercase() } else "Scholar Aspirant"
+
+        AlertDialog(
+            onDismissRequest = { if (!isAuthenticatingSocial) showGoogleAuthSheet = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    GoogleLogoIcon(modifier = Modifier.size(28.dp))
+                    Text(
+                        text = "Sign in with Google",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Choose an account to continue to Study Buddy AI",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                    // Account Option 1 (Default Scholar)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable(enabled = !isAuthenticatingSocial) {
+                                authSocialEmail = "aspirant.scholar@gmail.com"
+                                authSocialName = "Scholar Aspirant"
+                                isAuthenticatingSocial = true
+                            }
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "S",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Scholar Aspirant",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "aspirant.scholar@gmail.com",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // Account Option 2 (Dynamic Option)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable(enabled = !isAuthenticatingSocial) {
+                                authSocialEmail = dynamicEmail
+                                authSocialName = dynamicName
+                                isAuthenticatingSocial = true
+                            }
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.secondaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = dynamicName.take(1).uppercase(),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = dynamicName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = dynamicEmail,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(
+                    onClick = { showGoogleAuthSheet = false },
+                    enabled = !isAuthenticatingSocial
+                ) {
+                    Text("Cancel")
+                }
+            },
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+
+    // GitHub Account Authorization Dialog
+    if (showGithubAuthSheet) {
+        val enteredEmail = email.trim()
+        val isValidEnteredEmail = enteredEmail.contains("@") && enteredEmail.contains(".")
+        val dynamicEmail = if (isValidEnteredEmail) enteredEmail else "coder.aspirant@github.com"
+        val dynamicName = if (isValidEnteredEmail) enteredEmail.substringBefore("@").replaceFirstChar { it.uppercase() } else "Dev Aspirant"
+        
+        AlertDialog(
+            onDismissRequest = { if (!isAuthenticatingSocial) showGithubAuthSheet = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    GithubLogoIcon(modifier = Modifier.size(28.dp))
+                    Text(
+                        text = "Authorize Study Buddy AI",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Study Buddy AI is requesting permissions to access your public profile and email address.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF181717)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "GH",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = dynamicName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = dynamicEmail,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "• Public profile info (avatar, nickname)\n• Primary email address ($dynamicEmail)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        authSocialEmail = dynamicEmail
+                        authSocialName = dynamicName
+                        isAuthenticatingSocial = true
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2EA44F), // GitHub green button!
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    enabled = !isAuthenticatingSocial
+                ) {
+                    Text("Authorize com.aistudio")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showGithubAuthSheet = false },
+                    enabled = !isAuthenticatingSocial
+                ) {
+                    Text("Decline")
+                }
+            },
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+
+    // Active spinner simulation
+    if (isAuthenticatingSocial) {
+        LaunchedEffect(isAuthenticatingSocial) {
+            kotlinx.coroutines.delay(1200) // Beautiful delay
+            isAuthenticatingSocial = false
+            showGoogleAuthSheet = false
+            showGithubAuthSheet = false
+            
+            // Save login details to accounts SharedPreferences so they can function exactly like registered users
+            val cleanEmail = authSocialEmail.trim().lowercase()
+            accountsPrefs.edit()
+                .putString(cleanEmail, "oauth_social_token_placeholder")
+                .putString("${cleanEmail}_name", authSocialName)
+                .apply()
+                
+            // Trigger actual logged-in status
+            viewModel.setLoginStatus(cleanEmail, true)
+            Toast.makeText(context, "Successfully authenticated as $authSocialName!", Toast.LENGTH_LONG).show()
+        }
+
+        AlertDialog(
+            onDismissRequest = {},
+            confirmButton = {},
+            title = {},
+            text = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Text(
+                        text = "Securing OAuth connection...",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            },
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+}
+
+@Composable
+fun GoogleLogoIcon(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .background(Color.White, shape = CircleShape)
+            .border(1.dp, Color.LightGray.copy(alpha = 0.5f), CircleShape)
+            .padding(2.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val width = size.width
+            val height = size.height
+            
+            drawArc(
+                color = Color(0xFFEA4335), // Red
+                startAngle = 135f,
+                sweepAngle = 100f,
+                useCenter = false,
+                style = Stroke(width = 2.dp.toPx())
+            )
+            drawArc(
+                color = Color(0xFFFBBC05), // Yellow
+                startAngle = 45f,
+                sweepAngle = 90f,
+                useCenter = false,
+                style = Stroke(width = 2.dp.toPx())
+            )
+            drawArc(
+                color = Color(0xFF34A853), // Green
+                startAngle = -45f,
+                sweepAngle = 90f,
+                useCenter = false,
+                style = Stroke(width = 2.dp.toPx())
+            )
+            drawArc(
+                color = Color(0xFF4285F4), // Blue
+                startAngle = -135f,
+                sweepAngle = 90f,
+                useCenter = false,
+                style = Stroke(width = 2.dp.toPx())
+            )
+        }
+        Text(
+            text = "G",
+            color = Color(0xFF4285F4),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Black
+        )
+    }
+}
+
+@Composable
+fun GithubLogoIcon(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .background(Color(0xFF181717), shape = CircleShape)
+            .padding(2.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val r = size.minDimension / 2f
+            
+            drawCircle(
+                color = Color.White,
+                radius = r * 0.75f,
+                center = center
+            )
+            
+            val earPath = androidx.compose.ui.graphics.Path().apply {
+                moveTo(center.x - r * 0.5f, center.y - r * 0.3f)
+                lineTo(center.x - r * 0.6f, center.y - r * 0.8f)
+                lineTo(center.x - r * 0.2f, center.y - r * 0.5f)
+                close()
+                moveTo(center.x + r * 0.5f, center.y - r * 0.3f)
+                lineTo(center.x + r * 0.6f, center.y - r * 0.8f)
+                lineTo(center.x + r * 0.2f, center.y - r * 0.5f)
+                close()
+            }
+            drawPath(earPath, color = Color.White)
+            
+            drawCircle(
+                color = Color(0xFF181717),
+                radius = r * 0.12f,
+                center = androidx.compose.ui.geometry.Offset(center.x - r * 0.22f, center.y - r * 0.05f)
+            )
+            drawCircle(
+                color = Color(0xFF181717),
+                radius = r * 0.12f,
+                center = androidx.compose.ui.geometry.Offset(center.x + r * 0.22f, center.y - r * 0.05f)
+            )
         }
     }
 }

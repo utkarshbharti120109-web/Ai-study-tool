@@ -89,6 +89,8 @@ fun StudyGuideScreen(
 @Composable
 fun InputMaterialsScreen(viewModel: StudyViewModel) {
     val context = LocalContext.current
+    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val topicInput by viewModel.topicInput.collectAsStateWithLifecycle()
     val difficulty by viewModel.selectedDifficulty.collectAsStateWithLifecycle()
     val isExamTomorrow by viewModel.isExamTomorrow.collectAsStateWithLifecycle()
@@ -481,6 +483,8 @@ fun InputMaterialsScreen(viewModel: StudyViewModel) {
                     ) {
                         Button(
                             onClick = {
+                                keyboardController?.hide()
+                                focusManager.clearFocus()
                                 viewModel.queryVoiceTeacher(voiceQueryInput, context)
                                 voiceQueryInput = ""
                             },
@@ -729,7 +733,11 @@ fun InputMaterialsScreen(viewModel: StudyViewModel) {
         // Active generate button Spark Pack
         item {
             Button(
-                onClick = { viewModel.generateStudySession() },
+                onClick = {
+                    keyboardController?.hide()
+                    focusManager.clearFocus()
+                    viewModel.generateStudySession()
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)

@@ -49,6 +49,9 @@ fun LoginScreen(
     var nickname by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
 
+    val keyboardController = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+
     val accountsPrefs = remember {
         context.getSharedPreferences("app_accounts", android.content.Context.MODE_PRIVATE)
     }
@@ -220,6 +223,8 @@ fun LoginScreen(
                             .testTag("login_auth_button"),
                         shape = RoundedCornerShape(14.dp),
                         onClick = {
+                            keyboardController?.hide()
+                            focusManager.clearFocus()
                             // Validations
                             if (email.trim().isEmpty() || password.trim().isEmpty()) {
                                 Toast.makeText(context, "Please configure both email and password.", Toast.LENGTH_SHORT).show()

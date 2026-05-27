@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 
 sealed interface GeneratingUiState {
     object Idle : GeneratingUiState
@@ -45,6 +47,7 @@ class StudyViewModel(
     val voiceAnswer = MutableStateFlow("")
     val isVoiceLoading = MutableStateFlow(false)
     private var tts: android.speech.tts.TextToSpeech? = null
+    @Volatile private var isTtsReady = false
     
     // Pomodoro Timer States
     val focusTimerSecondsLeft = MutableStateFlow(1500) // 25:00 default
@@ -140,6 +143,9 @@ class StudyViewModel(
         viewModelScope.launch {
             repository.populateDefaultBadges()
         }
+        viewModelScope.launch(Dispatchers.Main) {
+            initTts(application)
+        }
     }
 
     fun setLoginStatus(email: String, loggedIn: Boolean) {
@@ -186,28 +192,54 @@ class StudyViewModel(
     // Voice Teacher Actions
     fun initTts(context: Context) {
         if (tts == null) {
-            try {
-                tts = android.speech.tts.TextToSpeech(context.applicationContext) { status ->
+            synchronized(this) {
+                if (tts == null) {
                     try {
-                        if (status == android.speech.tts.TextToSpeech.SUCCESS) {
-                            tts?.language = java.util.Locale.US
+                        isTtsReady = false
+                        val appCtx = context.applicationContext
+                        tts = android.speech.tts.TextToSpeech(appCtx) { status ->
+                            try {
+                                if (status == android.speech.tts.TextToSpeech.SUCCESS) {
+                                    val result = tts?.setLanguage(java.util.Locale.US)
+                                    if (result == android.speech.tts.TextToSpeech.LANG_MISSING_DATA ||
+                                        result == android.speech.tts.TextToSpeech.LANG_NOT_SUPPORTED) {
+                                        isTtsReady = false
+                                    } else {
+                                        isTtsReady = true
+                                    }
+                                } else {
+                                    isTtsReady = false
+                                }
+                            } catch (e: java.lang.Exception) {
+                                e.printStackTrace()
+                                isTtsReady = false
+                            }
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
+                        isTtsReady = false
                     }
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
             }
         }
     }
 
     fun speakText(text: String, context: Context) {
-        try {
-            initTts(context)
-            tts?.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "StudyBuddyVoiceText")
-        } catch (e: Exception) {
-            e.printStackTrace()
+        if (text.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                initTts(context)
+                var retries = 0
+                while (!isTtsReady && retries < 15) {
+                    delay(200)
+                    retries++
+                }
+                if (isTtsReady && tts != null) {
+                    tts?.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "StudyBuddyVoiceText")
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
@@ -247,8 +279,17 @@ class StudyViewModel(
                 speakText(responseText, context)
                 repository.incrementXp(15)
             } catch (e: Exception) {
-                voiceAnswer.value = "Error: ${e.localizedMessage}"
+                e.printStackTrace()
+                val hasApiKey = customApiKey.value.isNotEmpty() || (com.example.BuildConfig.GEMINI_API_KEY.isNotEmpty() && com.example.BuildConfig.GEMINI_API_KEY != "MY_GEMINI_API_KEY")
+                val errMsg = e.localizedMessage ?: "HTTP 403 Forbidden"
+                val errorNotice = if (!hasApiKey) {
+                    "Voice mode error. No valid API key configured. Please enter your personal Gemini API Key in the Settings panel!"
+                } else {
+                    "Offline voice mode fallback (API returned: $errMsg). For '$query', remember that physics and chemistry laws dictate how materials behave. Make sure to review your guidebook!"
+                }
+                voiceAnswer.value = errorNotice
                 isVoiceLoading.value = false
+                speakText(errorNotice, context)
             }
         }
     }

@@ -63,9 +63,7 @@ class MainActivity : ComponentActivity() {
           LoginScreen(viewModel = viewModel)
         } else {
           Scaffold(
-            modifier = Modifier
-              .fillMaxSize()
-              .windowInsetsPadding(WindowInsets.safeDrawing),
+            modifier = Modifier.fillMaxSize(),
             bottomBar = {
               NavigationBar(
                 modifier = Modifier.testTag("bottom_navigation_bar")
